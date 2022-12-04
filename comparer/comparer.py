@@ -28,7 +28,7 @@ class Comparer:
             funcs_data = list(zip(functions_jumpdests, signatures, method_ids))
             funcs_data.sort(key=operator.itemgetter(0))
 
-            # 3. split assembly by functions and obtain a dict where by function name we get the assembly
+            # 3. split assembly by functions and obtain a dict where by address of the contract we get the list of functions
             funcs_dict[address] = self._split_assembly_on_funcs(assembly=contract_data['assembly'], funcs_data=funcs_data)
         
         self._compare_contracts_functions(contract_addresses=contract_addresses, funcs_dict=funcs_dict)
