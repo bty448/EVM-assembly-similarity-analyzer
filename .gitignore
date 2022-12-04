@@ -1,3 +1,4 @@
 .idea
 venv
 contracts
+**/__pycache__

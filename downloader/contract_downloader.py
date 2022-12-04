@@ -4,10 +4,10 @@ from time import sleep
 
 from requests.sessions import Session
 from web3 import Web3, HTTPProvider
-from pyevmasm import disassemble
 
 from .network import Network
 from .downloader_exception import DownloaderException
+from disassembler import disassemble
 
 
 def _get_endpoint(network: Network) -> str:
@@ -57,7 +57,7 @@ class ContractDownloader:
     def download_bytecode(self, address: str):
         bytecode = self.web3.eth.get_code(address)
         self._save(address, 'bytecode', bytecode, binary=True)
-        assembly = disassemble(bytecode)
+        assembly = disassemble(bytecode, add_addresses=True)
         self._save(address, 'assembly', assembly)
 
     def download_from_etherscan(self, address: str):
@@ -81,6 +81,9 @@ class ContractDownloader:
 
     def get_creation_tx_hash(self, address: str):
         return self.request('getcontractcreation', {'contractaddresses': address})
+    
+    def get_out_dir(self, address):
+        return os.path.join(self.output_dir, self.network.value, address)
 
     def close(self):
         self.session.close()
@@ -111,7 +114,7 @@ class ContractDownloader:
         return self.endpoint + '?' + '&'.join([f'{key}={value}' for key, value in params.items()])
 
     def _save(self, address, name, content, binary=False):
-        contract_dir = os.path.join(self.output_dir, self.network.value, address)
+        contract_dir = self.get_out_dir(address)
         if not os.path.exists(contract_dir):
             os.makedirs(contract_dir)
         path = os.path.join(contract_dir, name)
