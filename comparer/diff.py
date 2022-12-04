@@ -8,8 +8,8 @@ def is_significant_diff(diff):
     return not is_same_by_diff(diff)
 
 def find_diff(funcs):
-    f1_assembly = funcs[0].function_assembly
-    f2_assembly = funcs[1].function_assembly
+    f1_assembly = funcs[0]['function_assembly']
+    f2_assembly = funcs[1]['function_assembly']
 
     f1_operators = remove_args(f1_assembly)
     f2_operators = remove_args(f2_assembly)

@@ -111,15 +111,15 @@ class Comparer:
                         funcs = (funcs_with_signature[0][k], funcs_with_signature[1][l])
 
                         for m in range(2):
-                            if used[m].contains(funcs[m].method_signature):
+                            if used[m].contains(funcs[m]['signature']):
                                 continue
 
                         diff = find_diff(funcs)
                         if not is_significant_diff(diff):
                             print('Found similar functions in contracts with addresses: {} and {}.'.format(addrs[0], addrs[1]))
                             for m in range(2):
-                                print('Function in contract with address {}: {}'.format(addrs[k], funcs[k].method_signature))
+                                print('Function in contract with address {}: {}'.format(addrs[k], funcs[k]['signature']))
                             print()
                         
                         for m in range(2):
-                            used[m].add(funcs[m].method_signature)
+                            used[m].add(funcs[m]['signature'])
