@@ -1,13 +1,13 @@
 from pyevmasm import disassemble_all
 
 
-def disassemble(bytecode, pc=0, add_addresses=False):
+def disassemble(bytecode, pc=0, add_addresses=False) -> str:
     """Disassemble a bytecode string into a list of instructions.
 
     :param bytecode: bytecode string
     :param pc: start address
     :param add_addresses: add addresses to the instructions
-    :return: list of instructions
+    :return: assembly code
     """
     assembler = ""
     for instruction in disassemble_all(bytecode, pc=pc):
