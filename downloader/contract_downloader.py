@@ -4,10 +4,10 @@ from time import sleep
 
 from requests.sessions import Session
 from web3 import Web3, HTTPProvider
-from pyevmasm import disassemble
 
 from .network import Network
 from .downloader_exception import DownloaderException
+from disassembler import disassemble
 
 
 def _get_endpoint(network: Network) -> str:
@@ -57,7 +57,7 @@ class ContractDownloader:
     def download_bytecode(self, address: str):
         bytecode = self.web3.eth.get_code(address)
         self._save(address, 'bytecode', bytecode, binary=True)
-        assembly = disassemble(bytecode)
+        assembly = disassemble(bytecode, add_addresses=True)
         self._save(address, 'assembly', assembly)
 
     def download_from_etherscan(self, address: str):
