@@ -1,6 +1,8 @@
 import json
 import os
-import requests
+from time import sleep
+
+from requests.sessions import Session
 from web3 import Web3, HTTPProvider
 from pyevmasm import disassemble
 
@@ -43,6 +45,7 @@ class ContractDownloader:
         self.output_dir = output_dir
         self.network = network
         self.endpoint = _get_endpoint(network)
+        self.session = Session()
 
         if not self.web3.isConnected():
             raise DownloaderException('Unable to connect to node')
@@ -59,34 +62,45 @@ class ContractDownloader:
 
     def download_from_etherscan(self, address: str):
         response = self.get_contract_source_code(address)
-        if response['status'] == '1':
-            result = response['result'][0]
-            source_code = result['SourceCode']
-            if source_code:
-                self._save(address, 'source_code.sol', source_code)
-            abi = result['ABI']
-            if abi != 'Contract source code not verified':
-                self._save(address, 'abi.json', abi)
-            del result['SourceCode']
-            del result['ABI']
-            self._save(address, 'metadata.json', json.dumps(result, indent=4))
-        else:
-            raise DownloaderException(response['message'])
-
-    def get_contract_abi(self, address: str):
-        url = self._get_url('getabi', {'address': address})
-        response = requests.get(url)
-        return response.json()
+        result = response['result'][0]
+        source_code = result['SourceCode']
+        if source_code:
+            self._save(address, 'source_code.sol', source_code)
+        abi = result['ABI']
+        if abi != 'Contract source code not verified':
+            self._save(address, 'abi.json', abi)
+        del result['SourceCode']
+        del result['ABI']
+        self._save(address, 'metadata.json', json.dumps(result, indent=4))
 
     def get_contract_source_code(self, address: str):
-        url = self._get_url('getsourcecode', {'address': address})
-        response = requests.get(url)
-        return response.json()
+        return self.request('getsourcecode', {'address': address})
+
+    def get_contract_abi(self, address: str):
+        return self.request('getabi', {'address': address})
 
     def get_creation_tx_hash(self, address: str):
-        url = self._get_url('getcontractcreation', {'contractaddresses': address})
-        response = requests.get(url)
-        return response.json()
+        return self.request('getcontractcreation', {'contractaddresses': address})
+
+    def close(self):
+        self.session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def request(self, action, params=None):
+        url = self._get_url(action, params)
+        while True:
+            response = self.session.get(url).json()
+            if response['status'] == '1':
+                return response
+            if response['result'] == 'Max rate limit reached':
+                sleep(1)
+                continue
+            raise DownloaderException(response['message'])
 
     def _get_url(self, action, params=None):
         if params is None:
