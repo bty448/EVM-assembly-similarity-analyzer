@@ -2,7 +2,7 @@ import sys
 from downloader import ContractDownloader
 from comparer import Comparer
 
-#TODO: get from args
+# TODO: get from args
 alchemy_url = 'ALCHEMY_URL'
 etherscan_api_key = 'ETHERSCAN_API_KEY'
 

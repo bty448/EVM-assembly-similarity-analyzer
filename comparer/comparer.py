@@ -9,34 +9,45 @@ class Comparer:
     def __init__(self, downloader: ContractDownloader):
         self.downloader = downloader
         self.hasher = Hasher()
-    
-    def __call__(self, contract_addresses: list = []):
+
+    def __call__(self, contract_addresses=None):
+        if contract_addresses is None:
+            contract_addresses = []
         self._download_contracts(contract_addresses=contract_addresses)
 
         # {address -> [{signature, function_assembly}]}
         funcs_dict = {}
 
         for address, contract_data in self.contracts_data.items():
-            #plan:
+            # plan:
 
-            # 1. get all funcitons hash codes from abi
+            # 1. get all functions hash codes from abi
             signatures, method_ids = self._get_functions_info(contract_data['abi'])
 
-            # 2. find occurences in assembly file and find corresponding position of JUMPDEST in code
-            functions_jumpdests = self._find_jumpdests_of_functions(assembly=contract_data['assembly'], method_ids=method_ids)
+            # 2. find occurrences in assembly file and find corresponding position of JUMPDEST in code
+            functions_jumpdests = self._find_jumpdests_of_functions(
+                assembly=contract_data['assembly'],
+                method_ids=method_ids
+            )
 
             funcs_data = list(zip(functions_jumpdests, signatures, method_ids))
             funcs_data.sort(key=operator.itemgetter(0))
 
-            # 3. split assembly by functions and obtain a dict where by address of the contract we get the list of functions
-            funcs_dict[address] = self._split_assembly_on_funcs(assembly=contract_data['assembly'], funcs_data=funcs_data)
-        
+            # 3. split assembly by functions and obtain a dict
+            # whereby address of the contract we get the list of functions
+            funcs_dict[address] = self._split_assembly_on_funcs(
+                assembly=contract_data['assembly'],
+                funcs_data=funcs_data
+            )
+
         self._compare_contracts_functions(contract_addresses=contract_addresses, funcs_dict=funcs_dict)
 
-    def _download_contracts(self, contract_addresses: list = []):
+    def _download_contracts(self, contract_addresses=None):
+        if contract_addresses is None:
+            contract_addresses = []
         self.contracts_data = {}
 
-        #TODO: add caching
+        # TODO: add caching
         for address in contract_addresses:
             self.downloader.download(address=address)
             contract_dir = self.downloader.get_out_dir(address=address)
@@ -44,10 +55,10 @@ class Comparer:
             with open(contract_dir + "/abi.json") as abi:
                 with open(contract_dir + "/assembly") as assembly:
                     self.contracts_data[address] = {
-                        'abi':      json.load(abi),
+                        'abi': json.load(abi),
                         'assembly': assembly.readlines(),
                     }
-    
+
     # Returns 2 lists: list of functions' signatures and list of corresponding method ids.
     # They go in the same order
     def _get_functions_info(self, abi):
@@ -93,9 +104,9 @@ class Comparer:
             (end_line, _, _) = milestones[i]
             funcs.append({
                 'signature': signature,
-                'function_assembly': assembly[start_line + 1 : end_line]
+                'function_assembly': assembly[start_line + 1: end_line]
             })
-        
+
         return funcs[0:]
 
     def _compare_contracts_functions(self, contract_addresses, funcs_dict):
@@ -116,10 +127,12 @@ class Comparer:
 
                         diff = find_diff(funcs)
                         if not is_significant_diff(diff):
-                            print('Found similar functions in contracts with addresses: {} and {}.'.format(addrs[0], addrs[1]))
+                            print('Found similar functions in contracts with addresses: {} and {}.'.format(addrs[0],
+                                                                                                           addrs[1]))
                             for m in range(2):
-                                print('Function in contract with address {}: {}'.format(addrs[k], funcs[k]['signature']))
+                                print(
+                                    'Function in contract with address {}: {}'.format(addrs[k], funcs[k]['signature']))
                             print()
-                        
+
                         for m in range(2):
                             used[m].add(funcs[m]['signature'])

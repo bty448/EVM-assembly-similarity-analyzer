@@ -1,5 +1,6 @@
 from Crypto.Hash import keccak
 
+
 class Hasher:
     def __init__(self, bits=256):
         self.bits = bits
