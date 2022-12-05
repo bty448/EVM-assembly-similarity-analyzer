@@ -1,11 +1,24 @@
+import os
 import sys
+from dotenv import load_dotenv
 from downloader import ContractDownloader
 from comparer import Comparer
 
-# TODO: get from args
-alchemy_url = 'ALCHEMY_URL'
-etherscan_api_key = 'ETHERSCAN_API_KEY'
 
-contract_addresses = sys.argv[1:]
-with ContractDownloader(etherscan_api_key, alchemy_url) as downloader:
-    Comparer(downloader=downloader)(contract_addresses=contract_addresses)
+def main():
+    load_dotenv()
+
+    node_url = os.getenv('NODE_URL')
+    etherscan_api_key = os.getenv('ETHERSCAN_API_KEY')
+
+    if not node_url or not etherscan_api_key:
+        print('NODE_URL and ETHERSCAN_API_KEY must be set in .env')
+        sys.exit(1)
+
+    contract_addresses = sys.argv[1:]
+    with ContractDownloader(etherscan_api_key, node_url) as downloader:
+        Comparer(downloader=downloader)(contract_addresses=contract_addresses)
+
+
+if __name__ == '__main__':
+    main()

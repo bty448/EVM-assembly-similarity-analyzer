@@ -2,3 +2,5 @@
 venv
 contracts
 **/__pycache__
+
+.env
