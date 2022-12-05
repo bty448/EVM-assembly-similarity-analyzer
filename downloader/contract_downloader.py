@@ -40,6 +40,12 @@ class ContractDownloader:
         output_dir: str = 'contracts',
         network: Network = Network.MAINNET,
     ):
+        """
+        :param etherscan_api_key: The Etherscan API key
+        :param node_url: The URL of the Ethereum node
+        :param output_dir: The output directory
+        :param network: The network, defaults to mainnet
+        """
         self.api_key = etherscan_api_key
         self.web3 = Web3(HTTPProvider(node_url))
         self.output_dir = output_dir
@@ -50,51 +56,98 @@ class ContractDownloader:
         if not self.web3.isConnected():
             raise DownloaderException('Unable to connect to node')
 
-    def download(self, address: str):
+    def download(self, address: str) -> None:
+        """
+        Downloads the bytecode, source code, ABI and metadata for a contract
+        :param address: The address of the contract
+        :return: None
+        """
         self.download_from_etherscan(address)
         self.download_bytecode(address)
 
-    def download_bytecode(self, address: str):
+    def download_bytecode(self, address: str) -> None:
+        """
+        Downloads the bytecode for a contract from the node
+        :param address: The address of the contract
+        :return: None
+        """
         bytecode = self.web3.eth.get_code(address)
         self._save(address, 'bytecode', bytecode, binary=True)
         assembly = disassemble(bytecode, add_addresses=True)
         self._save(address, 'assembly', assembly)
 
-    def download_from_etherscan(self, address: str):
+    def download_from_etherscan(self, address: str) -> None:
+        """
+        Downloads the bytecode, source code, ABI and metadata for a contract from Etherscan
+        :param address: The address of the contract
+        :return: None
+        """
         response = self.get_contract_source_code(address)
         result = response['result'][0]
         source_code = result['SourceCode']
         if source_code:
-            self._save(address, 'source_code.sol', source_code)
+            if source_code.startswith('{{'):
+                sources = json.loads(source_code[1:-1])['sources']
+                for filename, source in sources.items():
+                    self._save_src(address, filename, source['content'])
+            else:
+                self._save_src(address, 'SourceCode.sol', source_code)
+
         abi = result['ABI']
         if abi != 'Contract source code not verified':
             self._save(address, 'abi.json', abi)
+
         del result['SourceCode']
         del result['ABI']
+
         self._save(address, 'metadata.json', json.dumps(result, indent=4))
 
-    def get_contract_source_code(self, address: str):
-        return self.request('getsourcecode', {'address': address})
+    def get_contract_source_code(self, address: str) -> dict:
+        """
+        Gets the source code for a contract from Etherscan
+        :param address: The address of the contract
+        :return: The source code
+        """
+        return self._request('getsourcecode', {'address': address})
 
-    def get_contract_abi(self, address: str):
-        return self.request('getabi', {'address': address})
+    def get_contract_abi(self, address: str) -> dict:
+        """
+        Gets the ABI for a contract from Etherscan
+        :param address: The address of the contract
+        :return: The ABI
+        """
+        return self._request('getabi', {'address': address})
 
-    def get_creation_tx_hash(self, address: str):
-        return self.request('getcontractcreation', {'contractaddresses': address})
+    def get_creation_tx_hash(self, address: str) -> dict:
+        """
+        Gets the transaction hash of the contract creation transaction
+        :param address: The address of the contract
+        :return: The transaction hash
+        """
+        return self._request('getcontractcreation', {'contractaddresses': address})
     
-    def get_out_dir(self, address):
+    def get_out_dir(self, address: str) -> str:
+        """
+        Gets the output directory for a contract
+        :param address: The address of the contract
+        :return: The output directory
+        """
         return os.path.join(self.output_dir, self.network.value, address)
 
-    def close(self):
+    def close(self) -> None:
+        """
+        Closes the downloader
+        :return: None
+        """
         self.session.close()
 
-    def __enter__(self):
+    def __enter__(self) -> 'ContractDownloader':
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.close()
 
-    def request(self, action, params=None):
+    def _request(self, action: str, params=None) -> dict:
         url = self._get_url(action, params)
         while True:
             response = self.session.get(url).json()
@@ -105,7 +158,7 @@ class ContractDownloader:
                 continue
             raise DownloaderException(response['message'])
 
-    def _get_url(self, action, params=None):
+    def _get_url(self, action: str, params=None) -> str:
         if params is None:
             params = {}
         params['module'] = 'contract'
@@ -113,8 +166,13 @@ class ContractDownloader:
         params['apikey'] = self.api_key
         return self.endpoint + '?' + '&'.join([f'{key}={value}' for key, value in params.items()])
 
-    def _save(self, address, name, content, binary=False):
+    def _save_src(self, address: str, filename: str, content: str) -> None:
+        self._save(address, filename, content, inner_dir='src')
+
+    def _save(self, address: str, name: str, content: str, inner_dir=None, binary=False) -> None:
         contract_dir = self.get_out_dir(address)
+        if inner_dir is not None:
+            contract_dir = os.path.join(contract_dir, inner_dir)
         if not os.path.exists(contract_dir):
             os.makedirs(contract_dir)
         path = os.path.join(contract_dir, name)
