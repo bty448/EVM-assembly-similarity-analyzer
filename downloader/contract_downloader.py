@@ -81,6 +81,9 @@ class ContractDownloader:
 
     def get_creation_tx_hash(self, address: str):
         return self.request('getcontractcreation', {'contractaddresses': address})
+    
+    def get_out_dir(self, address):
+        return os.path.join(self.output_dir, self.network.value, address)
 
     def close(self):
         self.session.close()
@@ -111,7 +114,7 @@ class ContractDownloader:
         return self.endpoint + '?' + '&'.join([f'{key}={value}' for key, value in params.items()])
 
     def _save(self, address, name, content, binary=False):
-        contract_dir = os.path.join(self.output_dir, self.network.value, address)
+        contract_dir = self.get_out_dir(address)
         if not os.path.exists(contract_dir):
             os.makedirs(contract_dir)
         path = os.path.join(contract_dir, name)
