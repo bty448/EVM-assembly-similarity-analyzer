@@ -16,8 +16,8 @@ def main():
         sys.exit(1)
 
     contract_addresses = sys.argv[1:]
-    with ContractDownloader(etherscan_api_key, node_url) as downloader:
-        Comparer(downloader).compare(contract_addresses)
+    with Comparer(ContractDownloader(etherscan_api_key, node_url)) as comparer:
+        comparer.compare(contract_addresses)
 
 
 if __name__ == '__main__':

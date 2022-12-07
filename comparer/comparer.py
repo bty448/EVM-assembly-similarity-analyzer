@@ -1,14 +1,19 @@
 import json
 import operator
 from downloader import ContractDownloader
-from .hasher import Hasher
+from .hash_utils import get_method_id
 from .diff import find_diff, is_significant_diff
 
 
 class Comparer:
     def __init__(self, downloader: ContractDownloader):
         self.downloader = downloader
-        self.hasher = Hasher()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.downloader.__exit__(exc_type, exc_val, exc_tb)
 
     def compare(self, contract_addresses: list[str]) -> None:
         self._download_contracts(contract_addresses=contract_addresses)
@@ -63,7 +68,7 @@ class Comparer:
             if entry['type'] == 'function':
                 args = ','.join([arg['type'] for arg in entry['inputs']])
                 signature = f"{entry['name']}({args})"
-                method_id = '0x' + self.hasher.get_method_id(signature)
+                method_id = '0x' + get_method_id(signature)
 
                 signatures.append(signature)
                 method_ids.append(method_id)
@@ -71,8 +76,16 @@ class Comparer:
         return signatures, method_ids
 
     def _find_jumpdests_of_functions(self, assembly: list[str], method_ids: list[str]) -> list[int]:
+        # Header pattern:
+        # PUSH4 method_id
+        # EQ | LT | GT
+        # PUSH2 method_address
+        # JUMPI
+        # PUSH2 fallback_address
+        # JUMP
         jumpdests = []
 
+        # TODO: find fallbacks
         address_to_line = {}
         for i in range(len(assembly)):
             line = assembly[i]
@@ -87,35 +100,36 @@ class Comparer:
                 if len(split_line) < 3:
                     continue
                 (address, opcode, arg) = line.split()
-                if opcode == 'PUSH4' and arg == method_id:
-                    if i + 3 >= len(assembly):
-                        # no jump
-                        continue
-                    expected_jump = assembly[i + 3].split()[1]
-                    if expected_jump != 'JUMP' and expected_jump != 'JUMPI':
-                        # no jump
-                        continue
-                    push_address = assembly[i + 2].split()
-                    if len(push_address) < 3:
-                        # no push
-                        continue
-                    (push_address, push_opcode, dest_address_hex) = push_address
-                    if push_opcode != 'PUSH2':
-                        # no push
-                        continue
-                    dest_address = int(dest_address_hex, base=16)
-                    if dest_address not in address_to_line:
-                        # no such address
-                        continue
-                    jumpdests.append(address_to_line[dest_address])
-                    break  # search only first occurrence
+                if opcode != 'PUSH4' or arg != method_id:
+                    continue
+                if i + 3 >= len(assembly):
+                    # no jump
+                    continue
+                expected_jump = assembly[i + 3].split()[1]
+                if expected_jump != 'JUMP' and expected_jump != 'JUMPI':
+                    # no jump
+                    continue
+                push_address = assembly[i + 2].split()
+                if len(push_address) < 3:
+                    # no push
+                    continue
+                (push_address, push_opcode, dest_address_hex) = push_address
+                if push_opcode != 'PUSH2':
+                    # no push
+                    continue
+                dest_address = int(dest_address_hex, base=16)
+                if dest_address not in address_to_line:
+                    # no such address
+                    continue
+                jumpdests.append(address_to_line[dest_address])
+                break  # search only first occurrence
             else:
                 # no occurrence found
                 jumpdests.append(-1)
 
         return jumpdests
 
-    def _split_assembly_on_funcs(self, assembly: list[str], funcs_data: list[tuple[int, str, str]]) -> list[dict]:
+    def _split_assembly_on_funcs(self, assembly: list[str], funcs_data: list[(int, str, str)]) -> list[dict]:
         funcs = []
 
         milestones = funcs_data + [(len(assembly), '', '')]
@@ -144,11 +158,11 @@ class Comparer:
                     for r in range(len(funcs_with_signature[1])):
                         funcs = (funcs_with_signature[0][k], funcs_with_signature[1][r])
 
-                        for m in range(2):
-                            if funcs[m]['signature'] in used[m]:
-                                continue  # TODO: lol, it's continue from inner loop
+                        if any([funcs[m]['signature'] in used[m] for m in range(2)]):
+                            continue
 
                         diff = find_diff(funcs)
+                        # TODO: add parameter to control diff threshold
                         if not is_significant_diff(diff):
                             print('Found similar functions in contracts:')
                             for m in range(2):

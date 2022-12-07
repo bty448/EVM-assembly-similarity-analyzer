@@ -6,7 +6,7 @@ def is_same_by_diff(diff) -> bool:
 
 
 def is_significant_diff(diff) -> bool:
-    # TODO check with recursion
+    # TODO ignore arguments only in jumps (check recursively)
     return not is_same_by_diff(diff)
 
 
