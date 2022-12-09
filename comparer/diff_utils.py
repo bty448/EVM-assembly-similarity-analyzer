@@ -21,4 +21,4 @@ def find_diff(funcs: (dict, dict)) -> list[str]:
 
 
 def remove_args(func_assembly: str) -> str:
-    return '\n'.join([line.split()[1] for line in func_assembly])
+    return '\n'.join([line.split()[0] for line in func_assembly.splitlines()])

@@ -1,7 +1,9 @@
 import os
 import sys
 from dotenv import load_dotenv
-from downloader import ContractDownloader
+
+from contract_manager import ContractManager
+from contract_manager.downloader import ContractDownloader
 from comparer import Comparer
 
 
@@ -16,7 +18,7 @@ def main():
         sys.exit(1)
 
     contract_addresses = sys.argv[1:]
-    with Comparer(ContractDownloader(etherscan_api_key, node_url)) as comparer:
+    with Comparer(ContractManager(ContractDownloader(etherscan_api_key, node_url))) as comparer:
         comparer.compare(contract_addresses)
 
 

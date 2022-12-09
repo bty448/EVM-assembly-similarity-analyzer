@@ -5,6 +5,7 @@ from time import sleep
 from requests.sessions import Session
 from web3 import Web3, HTTPProvider
 
+from utils.file_utils import write_text, write_binary
 from .network import Network
 from .downloader_exception import DownloaderException
 from disassembler import disassemble
@@ -33,6 +34,12 @@ def _get_endpoint_prefix(network: Network) -> str:
 
 
 class ContractDownloader:
+    BYTECODE_FILE_NAME = 'bytecode'
+    ASSEMBLY_FILE_NAME = 'assembly'
+    ABI_FILE_NAME = 'abi.json'
+    METADATA_FILE_NAME = 'metadata.json'
+    SRC_DIR = 'src'
+
     def __init__(
         self,
         etherscan_api_key: str,
@@ -56,6 +63,12 @@ class ContractDownloader:
         if not self.web3.isConnected():
             raise DownloaderException('Unable to connect to node')
 
+    def __enter__(self) -> 'ContractDownloader':
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
     def download(self, address: str) -> None:
         """
         Downloads the bytecode, source code, ABI and metadata for a contract
@@ -72,9 +85,9 @@ class ContractDownloader:
         :return: None
         """
         bytecode = self.web3.eth.get_code(address)
-        self._save(address, 'bytecode', bytecode, binary=True)
-        assembly = disassemble(bytecode, add_addresses=True)
-        self._save(address, 'assembly', assembly)
+        write_binary(self.get_bytecode_path(address), bytecode)
+        assembly = disassemble(bytecode, add_address=True, hex_address=True)
+        write_text(self.get_assembly_path(address), assembly)
 
     def download_from_etherscan(self, address: str) -> None:
         """
@@ -89,18 +102,18 @@ class ContractDownloader:
             if source_code.startswith('{{'):
                 sources = json.loads(source_code[1:-1])['sources']
                 for filename, source in sources.items():
-                    self._save_src(address, filename, source['content'])
+                    write_text(self.get_source_path(address, filename), source['content'])
             else:
-                self._save_src(address, 'SourceCode.sol', source_code)
+                write_text(self.get_source_path(address, 'SourceCode.sol'), source_code)
 
         abi = result['ABI']
         if abi != 'Contract source code not verified':
-            self._save(address, 'abi.json', abi)
+            write_text(self.get_abi_path(address), abi)
 
         del result['SourceCode']
         del result['ABI']
 
-        self._save(address, 'metadata.json', json.dumps(result, indent=4))
+        write_text(self.get_metadata_path(address), json.dumps(result, indent=4))
 
     def get_contract_source_code(self, address: str) -> dict:
         """
@@ -134,18 +147,61 @@ class ContractDownloader:
         """
         return os.path.join(self.output_dir, self.network.value, address)
 
+    def get_bytecode_path(self, address: str) -> str:
+        """
+        Gets the path to the bytecode file
+        :param address: The address of the contract
+        :return: The path to the bytecode file
+        """
+        return os.path.join(self.get_out_dir(address), self.BYTECODE_FILE_NAME)
+
+    def get_assembly_path(self, address: str) -> str:
+        """
+        Gets the path to the assembly file
+        :param address: The address of the contract
+        :return: The path to the assembly file
+        """
+        return os.path.join(self.get_out_dir(address), self.ASSEMBLY_FILE_NAME)
+
+    def get_abi_path(self, address: str) -> str:
+        """
+        Gets the path to the ABI file
+        :param address: The address of the contract
+        :return: The path to the ABI file
+        """
+        return os.path.join(self.get_out_dir(address), self.ABI_FILE_NAME)
+
+    def get_metadata_path(self, address: str) -> str:
+        """
+        Gets the path to the metadata file
+        :param address: The address of the contract
+        :return: The path to the metadata file
+        """
+        return os.path.join(self.get_out_dir(address), self.METADATA_FILE_NAME)
+
+    def get_src_dir(self, address: str) -> str:
+        """
+        Gets the path to the source code directory
+        :param address: The address of the contract
+        :return: The path to the source code directory
+        """
+        return os.path.join(self.get_out_dir(address), self.SRC_DIR)
+
+    def get_source_path(self, address: str, filename: str) -> str:
+        """
+        Gets the path to a source code file
+        :param address: The address of the contract
+        :param filename: The name of the source code file
+        :return: The path to the source code file
+        """
+        return os.path.join(self.get_src_dir(address), filename)
+
     def close(self) -> None:
         """
         Closes the downloader
         :return: None
         """
         self.session.close()
-
-    def __enter__(self) -> 'ContractDownloader':
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.close()
 
     def _request(self, action: str, params=None) -> dict:
         url = self._get_url(action, params)
@@ -165,22 +221,3 @@ class ContractDownloader:
         params['action'] = action
         params['apikey'] = self.api_key
         return self.endpoint + '?' + '&'.join([f'{key}={value}' for key, value in params.items()])
-
-    def _save_src(self, address: str, filename: str, content: str) -> None:
-        self._save(address, filename, content, inner_dir='src')
-
-    def _save(self, address: str, name: str, content: str, inner_dir=None, binary=False) -> None:
-        contract_dir = self.get_out_dir(address)
-        if inner_dir is not None:
-            contract_dir = os.path.join(contract_dir, inner_dir)
-        if not os.path.exists(contract_dir):
-            os.makedirs(contract_dir)
-        path = os.path.join(contract_dir, name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-
-        if binary:
-            file = open(path, 'wb')
-        else:
-            file = open(path, 'w', newline='')
-        with file:
-            file.write(content)
