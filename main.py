@@ -25,7 +25,7 @@ def main():
     parser.add_argument('-p', '--contracts-path', metavar='PATH',
                         required=False,
                         help='Path to the file, where contracts addresses are stored. Format of each line in the file is 0x*hex*. '
-                        + 'There must be at least 2 contracts addresses in the file.')
+                        + 'At least 2 contracts addresses must be specified.')
     parser.add_argument('-n', '--no-operands', action='store_true',
                         required=False,
                         help='Compare contracts without checking the operands.')
