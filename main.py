@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from dotenv import load_dotenv
 
 from contract_manager import ContractManager
@@ -17,9 +18,42 @@ def main():
         print('NODE_URL and ETHERSCAN_API_KEY must be set in .env')
         sys.exit(1)
 
-    contract_addresses = sys.argv[1:]
-    with Comparer(ContractManager(ContractDownloader(etherscan_api_key, node_url))) as comparer:
-        comparer.compare(contract_addresses)
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('-c', '--contracts', nargs='+', metavar='ADDRESS',
+                        required=False,
+                        help='Contracts addresses in format 0x*hex*. At least 2 contracts addresses must be specified.')
+    parser.add_argument('-p', '--contracts-path', metavar='PATH',
+                        required=False,
+                        help='Path to the file, where contracts addresses are stored. Format of each line in the file is 0x*hex*. '
+                        + 'There must be at least 2 contracts addresses in the file.')
+    parser.add_argument('-n', '--no-operands', action='store_true',
+                        required=False,
+                        help='Compare contracts without checking the operands.')
+    parser.add_argument('-d', '--diff-percentage', metavar='DIFF_PERCENTAGE', type=int,
+                        choices=range(0, 100), default=0, required=False,
+                        help='Upperbound for diff of the similar functions.')
+
+    args = parser.parse_args()
+
+    contracts_addresses = []
+    if args.contracts_path is not None:
+        with open(args.contracts_path, 'r') as file:
+            for line in file.readlines():
+                while line.endswith('\n') or line.endswith('\r'):
+                    line = line[:-1]
+                contracts_addresses.append(line)
+    
+    if args.contracts is not None:
+        contracts_addresses += args.contracts
+    
+    if len(contracts_addresses) < 2:
+        print('Specify contracts to check either using addresses explicitly, or using a file with addresses. Check --help for usage info.')
+    
+    no_operands = args.no_operands is not None
+    diff_percentage = args.diff_percentage
+
+    with Comparer(ContractManager(ContractDownloader(etherscan_api_key, node_url)), no_operands=no_operands, diff_percentage=diff_percentage) as comparer:
+        comparer.compare(contracts_addresses)
 
 
 if __name__ == '__main__':

@@ -2,5 +2,5 @@
 venv
 contracts
 **/__pycache__
-
+contracts_to_compare.txt
 .env
