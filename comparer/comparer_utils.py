@@ -113,7 +113,10 @@ def split_assembly_on_funcs(assembly: list[Instruction], funcs_data: list[(int, 
             (end_line, _, _) = milestones[i]
             funcs.append({
                 'signature': signature,
-                'function_assembly': '\n'.join(map(str, assembly[start_line + 1: end_line]))
+                'function_bounds': {
+                    'start': start_line + 1,
+                    'finish': end_line - 1,
+                }
             })
 
         return funcs

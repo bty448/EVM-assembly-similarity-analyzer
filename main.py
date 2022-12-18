@@ -18,6 +18,7 @@ def main():
         print('NODE_URL and ETHERSCAN_API_KEY must be set in .env')
         sys.exit(1)
 
+    # TODO: change description
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-c', '--contracts', nargs='+', metavar='ADDRESS',
                         required=False,
