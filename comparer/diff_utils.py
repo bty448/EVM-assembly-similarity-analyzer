@@ -83,6 +83,8 @@ class SimilarFinder:
             visited = set()
 
         for i in range(start, finish + 1):
+            if i in visited:
+                continue
             instruction = assembly[i]
             visited.add(i)
             unwrapped.append(instruction)
