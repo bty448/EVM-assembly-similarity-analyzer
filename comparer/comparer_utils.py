@@ -2,6 +2,8 @@ from pyevmasm import Instruction
 from .hash_utils import get_method_id
 
 
+HALTING_INSTRUCTIONS = set(['RETURN', 'REVERT', 'STOP', 'SELFDESTRUCT', 'ABORT', 'INVALID'])
+
 def get_functions_info(abi: list) -> (list[str], list[int]):
     signatures = []
     method_ids = []
@@ -18,8 +20,7 @@ def get_functions_info(abi: list) -> (list[str], list[int]):
     return signatures, method_ids
 
 
-def find_fallback_jumpdest(assembly: list[Instruction]):
-    address_to_line = {instruction.pc: i for i, instruction in enumerate(assembly)}
+def find_fallback_jumpdest(assembly: list[Instruction], address_to_line: dict):
     comparison_ops = set(['EQ', 'LT', 'GT'])
 
     for i, instruction in enumerate(assembly):
@@ -57,7 +58,7 @@ def find_fallback_jumpdest(assembly: list[Instruction]):
     return None
 
 
-def find_jumpdests_of_functions(assembly: list[Instruction], method_ids: list[int]) -> list[int]:
+def find_jumpdests_of_functions(assembly: list[Instruction], address_to_line: dict, method_ids: list[int]) -> list[int]:
     # Header pattern:
     # PUSH4 method_id
     # EQ | LT | GT
@@ -67,7 +68,6 @@ def find_jumpdests_of_functions(assembly: list[Instruction], method_ids: list[in
     # JUMP
     jumpdests = []
 
-    address_to_line = {instruction.pc: i for i, instruction in enumerate(assembly)}
     comparison_ops = set(['EQ', 'LT', 'GT'])
 
     for method_id in method_ids:
@@ -100,23 +100,44 @@ def find_jumpdests_of_functions(assembly: list[Instruction], method_ids: list[in
 
     return jumpdests
 
+def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: int) -> list[Instruction]:
+        unwrapped = []
+        visited = set()
 
-def split_assembly_on_funcs(assembly: list[Instruction], funcs_data: list[(int, str, str)]) -> list[dict]:
+        i = start
+        while True:
+            if i in visited:
+                i += 1
+                continue
+
+            instruction = assembly[i]
+            visited.add(i)
+            unwrapped.append(instruction)
+
+            if instruction.name in HALTING_INSTRUCTIONS:
+                return unwrapped
+
+            if instruction.name == 'JUMP' or instruction.name == 'JUMPI':
+                if assembly[i - 1].name[:4] == 'PUSH':
+                    address = assembly[i - 1].operand
+                    if address in address_to_line:
+                        line = address_to_line[address]
+                        if assembly[line].name == 'JUMPDEST':
+                            if (line + 1) not in visited:
+                                i = line + 1
+                                continue
+            i += 1
+
+def obtain_funcs_dict(assembly, address_to_line, funcs_data: list[(int, str, str)]) -> list[dict]:
         funcs = []
 
-        milestones = funcs_data + [(len(assembly), '', '')]
-
-        for i in range(1, len(milestones)):
-            (start_line, signature, _) = milestones[i - 1]
-            if start_line == -1:
+        for i in range(len(funcs_data)):
+            (jumpdest, signature, _) = funcs_data[i - 1]
+            if jumpdest == -1:
                 continue
-            (end_line, _, _) = milestones[i]
             funcs.append({
                 'signature': signature,
-                'function_bounds': {
-                    'start': start_line + 1,
-                    'finish': end_line - 1,
-                }
+                'unwrapped_assembly': unwrap_recursion(assembly, address_to_line, jumpdest + 1),
             })
 
         return funcs

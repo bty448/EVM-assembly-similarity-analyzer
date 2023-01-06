@@ -21,43 +21,41 @@ class Comparer:
         # {address -> [{signature, function_assembly}]}
         funcs_dict = {}
         assembly_dict = {}
+        address_to_line_dict = {}
 
         for address in set(contract_addresses):
             # plan:
 
             abi = self.manager.get_abi(address)
             assembly = self.manager.get_assembly(address)
+            address_to_line = {instruction.pc: i for i, instruction in enumerate(assembly)}
+
             assembly_dict[address] = assembly
+            address_to_line_dict[address] = address_to_line
 
             # 1. get all functions hash codes from abi
             signatures, method_ids = get_functions_info(abi)
 
             # 2. find occurrences in assembly file and find corresponding position of JUMPDEST in code
-            functions_jumpdests = find_jumpdests_of_functions(assembly=assembly, method_ids=method_ids)
+            functions_jumpdests = find_jumpdests_of_functions(assembly, address_to_line, method_ids)
             funcs_data = list(zip(functions_jumpdests, signatures, method_ids))
 
-            fallback_jumpdest = find_fallback_jumpdest(assembly=assembly)
+            fallback_jumpdest = find_fallback_jumpdest(assembly, address_to_line)
             if fallback_jumpdest is not None:
                 funcs_data.append((fallback_jumpdest, 'fallback()', None))
 
             funcs_data.sort(key=operator.itemgetter(0))
 
-            # 3. split assembly by functions and obtain a dict
-            # where by the address of the contract we get the list of functions
-            funcs_dict[address] = split_assembly_on_funcs(
-                assembly=assembly,
-                funcs_data=funcs_data
-            )
+            # 3. make a dict contract_address -> [{signature, start}]
+            funcs_dict[address] = obtain_funcs_dict(assembly, address_to_line, funcs_data)
 
         for i in range(1, len(contract_addresses)):
             for j in range(i):
                 addresses = [contract_addresses[i], contract_addresses[j]]
-                funcs_with_signature = [funcs_dict[addresses[0]], funcs_dict[addresses[1]]]
-                assemblies = [assembly_dict[addresses[0]], assembly_dict[addresses[1]]]
+                f_data = [funcs_dict[addresses[0]], funcs_dict[addresses[1]]]
                 SimilarFinder(
-                    funcs_with_signature=funcs_with_signature,
-                    addresses=addresses,
-                    assemblies=assemblies,
-                    no_operands=self.no_operands,
-                    diff_percentage=self.diff_percentage,
+                    f_data,
+                    addresses,
+                    self.no_operands,
+                    self.diff_percentage,
                 ).find_similar()
