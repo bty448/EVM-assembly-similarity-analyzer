@@ -2,7 +2,7 @@ from pyevmasm import Instruction
 from .hash_utils import get_method_id
 
 
-HALTING_INSTRUCTIONS = set(['RETURN', 'REVERT', 'STOP', 'SELFDESTRUCT', 'ABORT', 'INVALID'])
+HALTING_INSTRUCTIONS = set(['RETURN', 'REVERT', 'STOP', 'SELFDESTRUCT', 'ABORT', 'INVALID', 'CALL', 'DELEGATECALL', 'STATICCALL'])
 
 def get_functions_info(abi: list) -> (list[str], list[int]):
     signatures = []
@@ -104,8 +104,14 @@ def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: 
         unwrapped = []
         visited = set()
 
+        rec_stack = []
+
         i = start
         while True:
+            if i >= len(assembly):
+                print('reached end')
+                return unwrapped
+
             if i in visited:
                 i += 1
                 continue
@@ -115,7 +121,11 @@ def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: 
             unwrapped.append(instruction)
 
             if instruction.name in HALTING_INSTRUCTIONS:
-                return unwrapped
+                if len(rec_stack) == 0:
+                    print(instruction.name)
+                    return unwrapped
+                i = rec_stack.pop()
+                continue
 
             if instruction.name == 'JUMP' or instruction.name == 'JUMPI':
                 if assembly[i - 1].name[:4] == 'PUSH':
@@ -124,8 +134,12 @@ def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: 
                         line = address_to_line[address]
                         if assembly[line].name == 'JUMPDEST':
                             if (line + 1) not in visited:
+                                if instruction.name == 'JUMPI' and (i + 1) not in visited:
+                                    rec_stack.append(i + 1)
                                 i = line + 1
                                 continue
+                        else:
+                            print('bad jump')
             i += 1
 
 def obtain_funcs_dict(assembly, address_to_line, funcs_data: list[(int, str, str)]) -> list[dict]:

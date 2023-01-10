@@ -2,7 +2,6 @@ from difflib import context_diff
 from pyevmasm import Instruction
 
 
-
 def is_same_by_diff(diff) -> bool:
     return len(diff) == 0
 
@@ -40,6 +39,7 @@ class SimilarFinder:
 
         for i0 in range(len(self.functions_unwrapped_assembly[0])):
             for i1 in range(len(self.functions_unwrapped_assembly[1])):
+                print(i0, i1)
                 diff = self._find_diff(i0, i1, self.no_operands)
 
                 if (self.signature[0][i0], self.signature[1][i1]) in used:
