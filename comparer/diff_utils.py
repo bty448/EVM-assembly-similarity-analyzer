@@ -2,15 +2,6 @@ from difflib import context_diff
 from pyevmasm import Instruction
 
 
-def is_same_by_diff(diff) -> bool:
-    return len(diff) == 0
-
-
-def is_significant_diff(diff, diff_percentage: int = 0) -> bool:
-    #TODO: use diff_percentage
-    return not is_same_by_diff(diff)
-
-
 class SimilarFinder:
     def __init__(
         self,
@@ -33,19 +24,21 @@ class SimilarFinder:
         self.no_operands = no_operands
         self.diff_percentage = diff_percentage
     
+    def is_significant_diff(self, diff) -> bool:
+        (len_diff, len1, len2) = diff
+        percentage = len_diff / max(len1, len2) * 100.0
+        return percentage > self.diff_percentage
+
     def find_similar(self) -> list[(str, str)]:
         similar = []
         used = set()
 
         for i0 in range(len(self.functions_unwrapped_assembly[0])):
             for i1 in range(len(self.functions_unwrapped_assembly[1])):
-                print(i0, i1)
-                diff = self._find_diff(i0, i1, self.no_operands)
-
                 if (self.signature[0][i0], self.signature[1][i1]) in used:
                     continue
 
-                if not is_significant_diff(diff, self.diff_percentage):
+                if not self.is_significant_diff(self._find_diff(i0, i1, self.no_operands)):
                     similar.append((self.signature[0][i0], self.signature[1][i1]))
                     used.add((self.signature[0][i0], self.signature[1][i1]))
                     print('Found similar functions in contracts:')
@@ -62,7 +55,9 @@ class SimilarFinder:
         f0_operators = self._prepare_assembly(0, id0, no_operands)
         f1_operators = self._prepare_assembly(1, id1, no_operands)
 
-        return list(context_diff(f0_operators, f1_operators))
+        diff = list(context_diff(f0_operators, f1_operators))
+
+        return (len(diff), len(f0_operators), len(f1_operators))
 
     # id is 0 or 1
     def _prepare_assembly(self, id, i, no_operands: bool = False) -> str:
