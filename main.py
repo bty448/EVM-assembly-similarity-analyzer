@@ -32,6 +32,9 @@ def main():
     parser.add_argument('-d', '--diff-percentage', metavar='DIFF_PERCENTAGE', type=int,
                         choices=range(0, 100), default=0, required=False,
                         help='Upperbound for diff of the similar functions.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        required=False,
+                        help='Print to the console all the debug info.')
 
     args = parser.parse_args()
 
@@ -49,10 +52,11 @@ def main():
     if len(contracts_addresses) < 2:
         print('Specify contracts to check either using addresses explicitly, or using a file with addresses. Check --help for usage info.')
     
-    no_operands = args.no_operands is not None
+    no_operands = args.no_operands
+    verbose = args.verbose
     diff_percentage = args.diff_percentage
 
-    with Comparer(ContractManager(ContractDownloader(etherscan_api_key, node_url)), no_operands=no_operands, diff_percentage=diff_percentage) as comparer:
+    with Comparer(ContractManager(ContractDownloader(etherscan_api_key, node_url)), no_operands, diff_percentage, verbose) as comparer:
         comparer.compare(contracts_addresses)
 
 

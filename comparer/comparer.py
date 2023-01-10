@@ -6,10 +6,11 @@ from .diff_utils import SimilarFinder
 
 
 class Comparer:
-    def __init__(self, manager: ContractManager, no_operands=False, diff_percentage=0):
+    def __init__(self, manager: ContractManager, no_operands: bool = False, diff_percentage: int = 0, verbose: bool = False):
         self.manager = manager
         self.no_operands = no_operands
         self.diff_percentage = diff_percentage
+        self.verbose = verbose
 
     def __enter__(self):
         return self
@@ -47,7 +48,7 @@ class Comparer:
             funcs_data.sort(key=operator.itemgetter(0))
 
             # 3. make a dict contract_address -> [{signature, start}]
-            funcs_dict[address] = obtain_funcs_dict(assembly, address_to_line, funcs_data)
+            funcs_dict[address] = obtain_funcs_dict(assembly, address_to_line, funcs_data, self.verbose)
 
         for i in range(1, len(contract_addresses)):
             for j in range(i):

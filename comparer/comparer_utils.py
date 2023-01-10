@@ -100,58 +100,62 @@ def find_jumpdests_of_functions(assembly: list[Instruction], address_to_line: di
 
     return jumpdests
 
-def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: int) -> list[Instruction]:
-        unwrapped = []
-        visited = set()
+def unwrap_recursion(assembly: list[Instruction], address_to_line: dict, start: int, verbose: bool = False) -> list[Instruction]:
+    def debug_print(s: str):
+        if verbose:
+            print(s)
 
-        rec_stack = []
+    unwrapped = []
+    visited = set()
 
-        i = start
-        while True:
-            if i >= len(assembly):
-                print('reached end')
-                return unwrapped
+    rec_stack = []
 
-            if i in visited:
-                i += 1
-                continue
+    i = start
+    while True:
+        if i >= len(assembly):
+            debug_print('Reached the end of the assembly')
+            return unwrapped
 
-            instruction = assembly[i]
-            visited.add(i)
-            unwrapped.append(instruction)
-
-            if instruction.name in HALTING_INSTRUCTIONS:
-                if len(rec_stack) == 0:
-                    print(instruction.name)
-                    return unwrapped
-                i = rec_stack.pop()
-                continue
-
-            if instruction.name == 'JUMP' or instruction.name == 'JUMPI':
-                if assembly[i - 1].name[:4] == 'PUSH':
-                    address = assembly[i - 1].operand
-                    if address in address_to_line:
-                        line = address_to_line[address]
-                        if assembly[line].name == 'JUMPDEST':
-                            if (line + 1) not in visited:
-                                if instruction.name == 'JUMPI' and (i + 1) not in visited:
-                                    rec_stack.append(i + 1)
-                                i = line + 1
-                                continue
-                        else:
-                            print('bad jump')
+        if i in visited:
             i += 1
+            continue
 
-def obtain_funcs_dict(assembly, address_to_line, funcs_data: list[(int, str, str)]) -> list[dict]:
-        funcs = []
+        instruction = assembly[i]
+        visited.add(i)
+        unwrapped.append(instruction)
 
-        for i in range(len(funcs_data)):
-            (jumpdest, signature, _) = funcs_data[i - 1]
-            if jumpdest == -1:
-                continue
-            funcs.append({
-                'signature': signature,
-                'unwrapped_assembly': unwrap_recursion(assembly, address_to_line, jumpdest + 1),
-            })
+        if instruction.name in HALTING_INSTRUCTIONS:
+            if len(rec_stack) == 0:
+                debug_print('Reached halting instruction: {}'.format(instruction.name))
+                return unwrapped
+            i = rec_stack.pop()
+            continue
 
-        return funcs
+        if instruction.name == 'JUMP' or instruction.name == 'JUMPI':
+            if assembly[i - 1].name[:4] == 'PUSH':
+                address = assembly[i - 1].operand
+                if address in address_to_line:
+                    line = address_to_line[address]
+                    if assembly[line].name == 'JUMPDEST':
+                        if (line + 1) not in visited:
+                            if instruction.name == 'JUMPI' and (i + 1) not in visited:
+                                rec_stack.append(i + 1)
+                            i = line + 1
+                            continue
+                    else:
+                        debug_print('Bad jump')
+        i += 1
+
+def obtain_funcs_dict(assembly, address_to_line, funcs_data: list[(int, str, str)], verbose: bool = False) -> list[dict]:
+    funcs = []
+
+    for i in range(len(funcs_data)):
+        (jumpdest, signature, _) = funcs_data[i - 1]
+        if jumpdest == -1:
+            continue
+        funcs.append({
+            'signature': signature,
+            'unwrapped_assembly': unwrap_recursion(assembly, address_to_line, jumpdest + 1, verbose),
+        })
+
+    return funcs

@@ -61,6 +61,9 @@ class SimilarFinder:
 
     # id is 0 or 1
     def _prepare_assembly(self, id, i, no_operands: bool = False) -> str:
+        def collect(to_string):
+            return '\n'.join([to_string(instr) for instr in self.functions_unwrapped_assembly[id][i]])
+
         if no_operands:
-            return '\n'.join([str(line) for line in self.functions_unwrapped_assembly[id][i]])
-        return self.functions_unwrapped_assembly[id][i]
+            return collect(lambda x: str(x.name))
+        return collect(lambda x: str(x))
